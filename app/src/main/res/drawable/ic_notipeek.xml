@@ -3,14 +3,26 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Soft blue backdrop. -->
+    <path
+        android:fillColor="#E3F2FD"
+        android:pathData="M0,0h108v108h-108z" />
+    <!--
+        A chat bubble with an eye inside: "peek at the message" — reading
+        notifications without leaving a read receipt. Bubble body + tail.
+    -->
     <path
         android:fillColor="#1E88E5"
-        android:pathData="M0,0h108v108h-108z" />
-    <!-- A simple "eye" mark: peek without a trace. -->
+        android:pathData="M32,26 L76,26 Q90,26 90,40 L90,58 Q90,72 76,72 L32,72 Q18,72 18,58 L18,40 Q18,26 32,26 Z" />
+    <path
+        android:fillColor="#1E88E5"
+        android:pathData="M34,70 L30,86 L52,70 Z" />
+    <!-- Eye (white almond) inside the bubble. -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,34C36,34 24,54 24,54C24,54 36,74 54,74C72,74 84,54 84,54C84,54 72,34 54,34ZM54,66C47.4,66 42,60.6 42,54C42,47.4 47.4,42 54,42C60.6,42 66,47.4 66,54C66,60.6 60.6,66 54,66Z" />
+        android:pathData="M34,48 C44,36 64,36 74,48 C64,60 44,60 34,48 Z" />
+    <!-- Pupil. -->
     <path
         android:fillColor="#1E88E5"
-        android:pathData="M54,48C50.7,48 48,50.7 48,54C48,57.3 50.7,60 54,60C57.3,60 60,57.3 60,54C60,50.7 57.3,48 54,48Z" />
+        android:pathData="M46,48 A8,8 0 1 1 62,48 A8,8 0 1 1 46,48 Z" />
 </vector>

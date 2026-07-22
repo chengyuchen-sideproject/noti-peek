@@ -19,14 +19,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -49,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.notipeek.NotiPeekApp
 import com.notipeek.R
 import com.notipeek.data.AppSummary
+import com.notipeek.data.CaptureSettings
 import com.notipeek.data.CapturedMessage
 import com.notipeek.service.PeekNotificationListener
 import java.text.SimpleDateFormat
@@ -58,11 +63,12 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val repo = (application as NotiPeekApp).repository
+        val app = application as NotiPeekApp
         setContent {
             NotiPeekTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    val vm: MessageViewModel = viewModel(factory = MessageViewModel.Factory(repo))
+                    val vm: MessageViewModel =
+                        viewModel(factory = MessageViewModel.Factory(app.repository, app.settings))
                     AppRoot(vm)
                 }
             }
@@ -70,9 +76,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Minimal two-screen navigation without pulling in navigation-compose. */
+/** Minimal navigation without pulling in navigation-compose. */
 private sealed interface Screen {
     data object Home : Screen
+    data object Settings : Screen
     data class Conversation(val packageName: String, val appLabel: String) : Screen
 }
 
@@ -80,9 +87,12 @@ private sealed interface Screen {
 private fun AppRoot(vm: MessageViewModel) {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     when (val s = screen) {
-        is Screen.Home -> HomeScreen(vm, onOpenApp = { pkg, label ->
-            screen = Screen.Conversation(pkg, label)
-        })
+        is Screen.Home -> HomeScreen(
+            vm,
+            onOpenApp = { pkg, label -> screen = Screen.Conversation(pkg, label) },
+            onOpenSettings = { screen = Screen.Settings },
+        )
+        is Screen.Settings -> SettingsScreen(vm, onBack = { screen = Screen.Home })
         is Screen.Conversation -> ConversationScreen(
             vm, s.packageName, s.appLabel, onBack = { screen = Screen.Home }
         )
@@ -91,7 +101,11 @@ private fun AppRoot(vm: MessageViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen(vm: MessageViewModel, onOpenApp: (String, String) -> Unit) {
+private fun HomeScreen(
+    vm: MessageViewModel,
+    onOpenApp: (String, String) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val context = LocalContext.current
     val granted = remember { mutableStateOf(PeekNotificationListener.isEnabled(context)) }
     val summaries by vm.appSummaries.collectAsState(initial = emptyList())
@@ -109,7 +123,16 @@ private fun HomeScreen(vm: MessageViewModel, onOpenApp: (String, String) -> Unit
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { pad ->
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.app_name)) },
+            actions = {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = "設定要抓哪些 App")
+                }
+            },
+        )
+    }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             if (!granted.value) {
                 PermissionCard(onGrant = {
@@ -178,6 +201,87 @@ private fun AppRow(summary: AppSummary, onClick: () -> Unit) {
                 Text("${summary.messageCount} 則訊息", style = MaterialTheme.typography.bodySmall)
             }
             Text(formatTime(summary.lastMessageTime), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreen(vm: MessageViewModel, onBack: () -> Unit) {
+    val settings by vm.captureSettings.collectAsState(initial = CaptureSettings(false, emptySet()))
+    val summaries by vm.appSummaries.collectAsState(initial = emptyList())
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("擷取設定") },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+            },
+        )
+    }) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            // Mode toggle: capture everything (default) vs. only the checked apps.
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "只擷取選取的 App",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        if (settings.onlySelected) "目前只會抓下方勾選的 App。"
+                        else "目前會抓所有 App 的通知。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(checked = settings.onlySelected, onCheckedChange = { vm.setOnlySelected(it) })
+            }
+            HorizontalDivider()
+
+            if (summaries.isEmpty()) {
+                Column(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "尚無出現過的 App。\n收到通知後，這裡會列出可勾選的 App。",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            } else {
+                Text(
+                    "選擇要擷取的 App（清單來自已收到通知的 App）",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(summaries, key = { it.packageName }) { s ->
+                        val checked = settings.selectedPackages.contains(s.packageName)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { vm.setPackageSelected(s.packageName, !checked) }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(s.appLabel, style = MaterialTheme.typography.bodyLarge)
+                                Text(s.packageName, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { vm.setPackageSelected(s.packageName, it) },
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

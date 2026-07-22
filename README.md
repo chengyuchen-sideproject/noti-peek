@@ -7,8 +7,9 @@ without marking them as read**. It captures notifications and stores them
 locally, so you can peek at a LINE message without opening the chat — LINE never
 sends a read receipt.
 
-> **Status: early scaffold (v0.1.0).** Core capture + local storage + a minimal
-> UI are implemented. Not yet device-tested — build it in Android Studio to run.
+> **Status: working v0.1.0.** Core capture + local storage + a minimal UI +
+> a per-app capture filter. Built and device-tested on Android 16 (API 36);
+> supports API 26+.
 
 ## How it works — and why it doesn't mark messages as read
 
@@ -41,6 +42,9 @@ The notification stream is the only source.
   / plain styles for everything else.
 - **Local history** in a Room database — survives notification dismissal.
 - Grouped by app; tap to see the message stream; clear per-app or all.
+- **Choose which apps to capture:** a settings screen lists the apps seen so
+  far; flip on "only selected" and tick the ones you want (e.g. just LINE). The
+  default captures everything.
 - **Privacy by design:** the app declares **no `INTERNET` permission** —
   captured messages never leave the device.
 
@@ -54,18 +58,19 @@ The notification stream is the only source.
 
 ## Build & run
 
-1. Open the project in **Android Studio** (Koala / 2024.1+). It will download the
-   Gradle wrapper and SDK components on first sync.
-   - Command line instead of the IDE? Generate the wrapper once with a local
-     Gradle 8.9 (`gradle wrapper`), then `./gradlew assembleDebug`.
+1. Open the project in **Android Studio** (Koala / 2024.1+), or build from the
+   command line — the Gradle wrapper is included: `./gradlew assembleDebug`.
 2. Run on a device or emulator (Android 8.0+).
 3. On first launch, tap **前往開啟通知存取 / Grant notification access** and enable
    NotiPeek in the system list.
 4. Send yourself a LINE (or other) message — it appears in NotiPeek, and stays
    **unread** in LINE.
+5. Optional: open **Settings** (top-right) to pick which apps get captured.
 
-> `local.properties` (your SDK path) and the Gradle wrapper JAR are not committed;
-> Android Studio provides both.
+> `local.properties` (your SDK path) is not committed — Android Studio creates it,
+> or set `sdk.dir` yourself. The Gradle wrapper **is** committed, so a plain
+> `./gradlew` build needs only JDK 17 and the Android SDK (build-tools 34,
+> platform android-34).
 
 ## Project structure
 
@@ -76,11 +81,12 @@ app/src/main/java/com/notipeek/
 │  ├─ CapturedMessage.kt             one stored message (+ dedupe key)
 │  ├─ MessageDao.kt                  queries + per-app summaries
 │  ├─ AppDatabase.kt
-│  └─ MessageRepository.kt
+│  ├─ MessageRepository.kt
+│  └─ SettingsStore.kt               capture filter (SharedPreferences)
 ├─ service/
 │  └─ PeekNotificationListener.kt    THE CORE: capture + MessagingStyle parsing
 └─ ui/
-   ├─ MainActivity.kt                Compose screens (home / conversation)
+   ├─ MainActivity.kt                Compose screens (home / conversation / settings)
    ├─ MessageViewModel.kt
    └─ Theme.kt
 ```

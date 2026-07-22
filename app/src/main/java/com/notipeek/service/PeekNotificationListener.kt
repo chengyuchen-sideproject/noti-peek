@@ -9,6 +9,7 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.notipeek.data.CapturedMessage
 import com.notipeek.data.MessageRepository
+import com.notipeek.data.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,7 @@ class PeekNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val repo by lazy { MessageRepository.from(applicationContext) }
+    private val settings by lazy { SettingsStore(applicationContext) }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!shouldCapture(sbn)) return
@@ -59,6 +61,8 @@ class PeekNotificationListener : NotificationListenerService() {
         if (flags and Notification.FLAG_ONGOING_EVENT != 0) return false
         if (flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
         if (flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return false
+        // User-configured per-app filter (default: capture everything).
+        if (!settings.shouldCapture(sbn.packageName)) return false
         return true
     }
 
