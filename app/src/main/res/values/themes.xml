@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Bare framework theme with no ActionBar. All visible UI is drawn by
+        Jetpack Compose (Material3), so this only styles the initial window.
+    -->
+    <style name="Theme.NotiPeek" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

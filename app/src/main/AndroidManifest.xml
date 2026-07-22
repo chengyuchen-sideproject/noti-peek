@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        No INTERNET permission is declared on purpose: captured messages never
+        leave the device. The app only reads notifications locally.
+    -->
+
+    <application
+        android:name=".NotiPeekApp"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_notipeek"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_notipeek"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NotiPeek">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.NotiPeek">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            The core: a NotificationListenerService the system binds to once the
+            user grants "Notification access". Reading a notification here never
+            marks the source chat (e.g. LINE) as read.
+        -->
+        <service
+            android:name=".service.PeekNotificationListener"
+            android:exported="false"
+            android:label="@string/service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>
