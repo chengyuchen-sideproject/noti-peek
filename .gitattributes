@@ -1,0 +1,15 @@
+# Normalize line endings; keep text as LF in the repo.
+* text=auto eol=lf
+
+# Shell scripts and the Gradle wrapper must stay LF to be executable.
+*.sh    text eol=lf
+gradlew text eol=lf
+
+# Windows batch files stay CRLF.
+*.bat   text eol=crlf
+
+# Binary assets: never touch.
+*.png   binary
+*.jar   binary
+*.keystore binary
+*.jks   binary
