@@ -6,6 +6,21 @@
         leave the device. The app only reads notifications locally.
     -->
 
+    <!--
+        Package visibility (Android 11+): declare that we query launchable apps
+        so the capture-filter picker can list installed apps the user can choose
+        from *before* any notification has arrived. This is NOT the sensitive
+        QUERY_ALL_PACKAGES permission - it only reveals apps that have a launcher
+        entry (which covers every messaging app), keeping the zero-sensitive-
+        permission privacy stance intact.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".NotiPeekApp"
         android:allowBackup="false"

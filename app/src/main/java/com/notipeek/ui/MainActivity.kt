@@ -38,6 +38,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,8 @@ import com.notipeek.R
 import com.notipeek.data.AppSummary
 import com.notipeek.data.CaptureSettings
 import com.notipeek.data.CapturedMessage
+import com.notipeek.data.InstalledApp
+import com.notipeek.data.launchableApps
 import com.notipeek.service.PeekNotificationListener
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -219,6 +222,24 @@ private fun SettingsScreen(vm: MessageViewModel, onBack: () -> Unit) {
     val settings by vm.captureSettings.collectAsState(initial = CaptureSettings(false, emptySet()))
     val summaries by vm.appSummaries.collectAsState(initial = emptyList())
 
+    // Installed launchable apps, so the user can pick apps (e.g. LINE) before any
+    // notification has arrived. Loaded off the main thread via produceState.
+    val context = LocalContext.current
+    val installed by produceState(initialValue = emptyList<InstalledApp>()) {
+        value = launchableApps(context)
+    }
+    // Packages we have actually captured from, for a "已收到訊息" hint.
+    val seenPackages = remember(summaries) { summaries.associate { it.packageName to it.appLabel } }
+    // Merge: installed apps + any seen-but-not-launchable app + any already-selected
+    // package (so a selection is never hidden), de-duplicated and sorted by label.
+    val rows = remember(installed, summaries, settings.selectedPackages) {
+        val map = LinkedHashMap<String, String>()
+        installed.forEach { map[it.packageName] = it.label }
+        summaries.forEach { map.putIfAbsent(it.packageName, it.appLabel) }
+        settings.selectedPackages.forEach { map.putIfAbsent(it, it) }
+        map.entries.map { InstalledApp(it.key, it.value) }.sortedBy { it.label.lowercase() }
+    }
+
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("擷取設定") },
@@ -252,39 +273,43 @@ private fun SettingsScreen(vm: MessageViewModel, onBack: () -> Unit) {
             }
             HorizontalDivider()
 
-            if (summaries.isEmpty()) {
+            if (rows.isEmpty()) {
                 Column(
                     Modifier.fillMaxSize().padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        "尚無出現過的 App。\n收到通知後，這裡會列出可勾選的 App。",
+                        "載入 App 清單中…",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
             } else {
                 Text(
-                    "選擇要擷取的 App（清單來自已收到通知的 App）",
+                    "選擇要擷取的 App（可從已安裝的 App 直接挑選）",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 )
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(summaries, key = { it.packageName }) { s ->
-                        val checked = settings.selectedPackages.contains(s.packageName)
+                    items(rows, key = { it.packageName }) { app ->
+                        val checked = settings.selectedPackages.contains(app.packageName)
+                        val seen = seenPackages.containsKey(app.packageName)
                         Row(
                             Modifier.fillMaxWidth()
-                                .clickable { vm.setPackageSelected(s.packageName, !checked) }
+                                .clickable { vm.setPackageSelected(app.packageName, !checked) }
                                 .padding(horizontal = 20.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(s.appLabel, style = MaterialTheme.typography.bodyLarge)
-                                Text(s.packageName, style = MaterialTheme.typography.labelSmall)
+                                Text(app.label, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (seen) "${app.packageName} · 已收到訊息" else app.packageName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
                             }
                             Checkbox(
                                 checked = checked,
-                                onCheckedChange = { vm.setPackageSelected(s.packageName, it) },
+                                onCheckedChange = { vm.setPackageSelected(app.packageName, it) },
                             )
                         }
                     }

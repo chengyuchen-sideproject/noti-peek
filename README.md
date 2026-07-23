@@ -42,11 +42,13 @@ The notification stream is the only source.
   / plain styles for everything else.
 - **Local history** in a Room database — survives notification dismissal.
 - Grouped by app; tap to see the message stream; clear per-app or all.
-- **Choose which apps to capture:** a settings screen lists the apps seen so
-  far; flip on "only selected" and tick the ones you want (e.g. just LINE). The
-  default captures everything.
+- **Choose which apps to capture:** a settings screen lets you flip on "only
+  selected" and tick the apps you want (e.g. just LINE). You can pick from your
+  **installed apps** directly — no need to wait for a notification first.
 - **Privacy by design:** the app declares **no `INTERNET` permission** —
-  captured messages never leave the device.
+  captured messages never leave the device. To list installed apps for the
+  picker it uses a `<queries>` LAUNCHER declaration (visible launchable apps
+  only), **not** the sensitive `QUERY_ALL_PACKAGES` permission.
 
 ## Requirements & compatibility
 
