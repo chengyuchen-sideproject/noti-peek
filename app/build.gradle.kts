@@ -18,14 +18,14 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.notipeek"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.notipeek"
         minSdk = 26          // Android 8.0 - MessagingStyle + reliable NotificationListenerService
-        targetSdk = 34
-        versionCode = 3
-        versionName = "0.1.2"
+        targetSdk = 35       // Android 15 - required target level for new Google Play submissions
+        versionCode = 4
+        versionName = "0.1.3"
         vectorDrawables { useSupportLibrary = true }
     }
 
