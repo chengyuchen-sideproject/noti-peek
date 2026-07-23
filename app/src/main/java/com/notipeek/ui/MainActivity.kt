@@ -117,6 +117,11 @@ private fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 granted.value = PeekNotificationListener.isEnabled(context)
+                // Belt-and-suspenders: if the service process was killed while
+                // we were away, the listener may be silently disconnected with
+                // no onListenerDisconnected callback. Nudge the system to rebind
+                // so capture resumes the moment the user reopens the app.
+                PeekNotificationListener.ensureBound(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -139,6 +144,9 @@ private fun HomeScreen(
                     // The ON_RESUME observer above refreshes the state on return.
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 })
+            } else if (BackgroundAccessHelp.isLikelyRestrictedOem()) {
+                // Access granted, but this OEM throttles background listeners.
+                BackgroundRestrictionCard()
             }
             if (summaries.isEmpty()) {
                 EmptyHint(granted.value)

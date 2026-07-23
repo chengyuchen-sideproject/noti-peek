@@ -3,8 +3,10 @@ package com.notipeek.service
 import android.app.Notification
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
+import android.util.Log
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.notipeek.data.CapturedMessage
@@ -37,6 +39,29 @@ class PeekNotificationListener : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val repo by lazy { MessageRepository.from(applicationContext) }
     private val settings by lazy { SettingsStore(applicationContext) }
+
+    /**
+     * The system has bound us and will now deliver notifications. Nothing to do
+     * here yet, but overriding it documents the lifecycle alongside the
+     * disconnect handler below.
+     */
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.i(TAG, "listener connected")
+    }
+
+    /**
+     * The system tore down the binding (low memory, app update, Doze, or a
+     * routine reclaim). Android does NOT reliably rebind on its own, so without
+     * this the service silently stops receiving notifications and every message
+     * that arrives until the next manual reopen is lost. Ask for a rebind so
+     * capture resumes automatically.
+     */
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        Log.i(TAG, "listener disconnected, requesting rebind")
+        ensureBound(applicationContext)
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!shouldCapture(sbn)) return
@@ -134,9 +159,16 @@ class PeekNotificationListener : NotificationListenerService() {
         )
     }
 
-    /** Stable key so a repeated conversation line collapses to a single row. */
+    /**
+     * Stable key so a repeated conversation line collapses to a single row.
+     *
+     * We use the raw composite string, not its 32-bit [String.hashCode]: with the
+     * unique index + IGNORE-on-conflict, a hash collision between two genuinely
+     * different messages would silently drop the second one. SQLite indexes the
+     * full text cheaply, so there is no reason to risk the collision.
+     */
     private fun dedupeKey(pkg: String, title: String, sender: String, text: String, time: Long): String =
-        "$pkg|$title|$sender|$text|$time".hashCode().toString()
+        "$pkg|$title|$sender|$text|$time"
 
     private fun appLabelFor(pkg: String): String = try {
         val pm = packageManager
@@ -151,14 +183,62 @@ class PeekNotificationListener : NotificationListenerService() {
     }
 
     companion object {
+        private const val TAG = "NotiPeek"
+
+        private fun componentName(context: Context): ComponentName =
+            ComponentName(context, PeekNotificationListener::class.java)
+
         /** True if the user has granted this app notification access. */
         fun isEnabled(context: Context): Boolean {
             val flat = Settings.Secure.getString(
                 context.contentResolver, "enabled_notification_listeners"
             ) ?: return false
-            val me = ComponentName(context, PeekNotificationListener::class.java)
+            val me = componentName(context)
             return flat.split(":").any {
                 ComponentName.unflattenFromString(it) == me
+            }
+        }
+
+        /**
+         * Ask the system to (re)bind the listener if access is granted. Safe to
+         * call any time; used both from [onListenerDisconnected] and from the UI
+         * on resume as a belt-and-suspenders recovery for the case where the
+         * whole service process was killed and [onListenerDisconnected] never
+         * fired. A no-op when access has not been granted.
+         */
+        fun ensureBound(context: Context) {
+            if (!isEnabled(context)) return
+            Log.i(TAG, "ensureBound: forcing listener rebind")
+            val cn = componentName(context)
+            // On stock Android requestRebind() is enough. On several OEM ROMs —
+            // notably MIUI / HyperOS — the system leaves the listener *granted*
+            // but never actually binds it (it is absent from the "Live
+            // notification listeners" set), and requestRebind() does not force
+            // it. Toggling the component's enabled state disabled -> enabled
+            // makes the platform tear down and re-establish the binding, which
+            // reliably reconnects the listener. DONT_KILL_APP keeps our process
+            // (and this very call) alive across the toggle; we always end in the
+            // ENABLED state so the component is never left disabled.
+            try {
+                val pm = context.packageManager
+                pm.setComponentEnabledSetting(
+                    cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP,
+                )
+                pm.setComponentEnabledSetting(
+                    cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP,
+                )
+            } catch (_: Exception) {
+                // Best-effort; fall through to requestRebind below.
+            }
+            try {
+                NotificationListenerService.requestRebind(cn)
+            } catch (_: Exception) {
+                // requestRebind can throw if the component is momentarily in a
+                // bad state; the next resume will retry.
             }
         }
     }
